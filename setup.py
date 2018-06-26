@@ -5,6 +5,8 @@ setup(
     name="XANES",
     version='0.1dev',
     packages=['xanes'],
-    license='',
-    long_description=open('README.txt').read()
+    license='GNU General Public License v3.0',
+    long_description=open('README.txt').read(),
+    author='Sencer Selcuk',
+    author_email='sselcuk@bnl.gov'
 )
