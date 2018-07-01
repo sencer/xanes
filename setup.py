@@ -2,7 +2,7 @@ from distutils.core import setup
 
 
 setup(
-    name="XANES",
+    name="xanes",
     version='0.1dev',
     packages=['xanes'],
     license='GNU General Public License v3.0',
