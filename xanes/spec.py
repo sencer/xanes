@@ -1,9 +1,55 @@
+""" Data container for spectral data
+
+This module provides a `Generic` class as container for spectrum data,
+and a `ClassBuilder` class which returns a subclass of `Generic` for a
+specific edge of a specific element.
+
+Example:
+    # ClassBuilder will create a new class xanes.Spec.TiKEdge dynamically,
+    # which is aliased to TiKEdge by `TiKEdge = ...`
+    TiKEdge = ClassBuilder("TiKEdge", xmin=4950, xmax=5050, dx=0.1)
+    anatase = TiKEdge(x, y)
+
+TODO:
+    * implement fromfolder, dumpdb, readdb methods for Generic class.
+"""
+
+
 import numpy as np
 import warnings
 from inspect import getargspec
 from scipy.interpolate import interp1d
 
 class ClassBuilder():
+    """ Subclass `Generic` for given parameters, requires either xgrid, or
+        (xmin, xmax, dx) provided as arguments.
+
+        Args:
+            name (str): name for the dynamically created class
+            xmin (float): minimum of the energy range of the spectra
+            xmax (float): maximum of the energy range of the spectra
+            dx   (float): grid width for the spectral data
+            xgrid (np.array): a numpy array in form np.arange(xmin, xmax, dx)
+            broadening_function ((callable, [params)]), optional):
+                A tuple of a callable, and its parameters as an iterable, that
+                will be used for broadening the spectra.
+
+        Returns:
+            Dynamically created class xanes.spec.name where name is the input
+            parameter
+
+
+        Example:
+            # use a lorentzian for broadening, custom functions can also be used
+            from xanes.broadening import lorentzian
+            # create a grid for the energy axis
+            xgrid = np.arange(4960, 5010, 0.1)
+            # gamma of the lorentzian is energy dependent
+            gamma = ((xgrid - 4960)/50)**2 + 0.89
+            # build the class
+            ClassBuilder('TiKEdge', xgrid=xgrid,
+                         broadening_function=(lorentzian, (gamma,)))
+    """
 
     def __new__(cls, name, xmin=None, xmax=None, dx=None, xgrid=None,
                 broadening_function=None):
@@ -38,6 +84,14 @@ class ClassBuilder():
 
     @staticmethod
     def broadening_matrix(xgrid, func, args):
+        """ Create a matrix M, that when multiplied with spectrum, broadens it
+
+            Args:
+                xgrid (np.array): energy grid of the class
+                func (callable): broadening function, like a gaussian or
+                    a lorentzian. Its signature should be f(x, *args)
+                args (iterable): Arguments of the broadening function
+        """
 
         assert len(getargspec(func).args) == len(args) + 1
 
@@ -134,6 +188,7 @@ class Generic(np.ndarray):
             self *= val / self._scale
 
         self._scale = val
+
 
     @property
     def broadened(self):
