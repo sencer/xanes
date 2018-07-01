@@ -217,5 +217,49 @@ class Generic(np.ndarray):
 
 
     @classmethod
-    def fromdirectory(cls):
-        pass
+    def fromstructure(cls, file, species, idmap=None, *args, **kwargs):
+
+        if idmap is None:
+            idmap = lambda x: "%d.dat" % x
+
+        xshift = cls._getkwarg('xshift', 0, kwargs)
+        scale = cls._getkwarg('scale', 1, kwargs)
+        broaden = cls._getkwarg('broaden', True, kwargs)
+        symprec = cls._getkwarg('symprec', 0.1, kwargs)
+        angle_tolerance = cls._getkwarg('angle_tolerance', 15.0, kwargs)
+
+
+        from ase.io import read
+        from os.path import dirname
+        from spglib import get_symmetry
+        from collections import Counter
+
+        folder = dirname(file)
+
+        atoms = read(file)
+        equiv = get_symmetry((atoms.get_cell(),
+                              atoms.get_scaled_positions(),
+                              atoms.get_atomic_numbers()),
+                             symprec=symprec,
+                             angle_tolerance=angle_tolerance)['equivalent_atoms']
+
+        mask = (atoms.numbers == species)
+
+        try:
+            specs = [cls.fromfile("%s/%s" % (folder, idmap(i)),
+                                xshift=xshift,
+                                scale=scale,
+                                broaden=broaden)
+                    for i, atom in enumerate(atoms)
+                    if i == equiv[i] and mask[i]]
+        except IOError:
+            raise Exception("Some files are not found, please check idmap, " +
+                "symprec and angle_tolerance.")
+
+        numequiv = Counter(equiv)
+        raw = np.array([spec._y for spec in specs])
+        weights = np.array([numequiv[i] for i in numequiv
+                            if atoms[i].number == species])
+
+        return cls(specs[0]._x, weights @ raw, xshift=xshift, scale=scale,
+                   broaden=broaden), specs, weights / weights.sum()
