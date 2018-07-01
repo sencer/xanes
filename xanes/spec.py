@@ -275,7 +275,8 @@ class Generic(np.ndarray):
 
 
     @classmethod
-    def fromstructure(cls, file, species, idmap=None, *args, **kwargs):
+    def fromstructure(cls, file, species, idmap=None, warnonly=False,
+                      *args, **kwargs):
 
         if idmap is None:
             idmap = lambda x: "%d.dat" % x
@@ -301,23 +302,39 @@ class Generic(np.ndarray):
                              symprec=symprec,
                              angle_tolerance=angle_tolerance)['equivalent_atoms']
 
+        numequiv = Counter(equiv)
         mask = (atoms.numbers == species)
 
-        try:
-            specs = [cls.fromfile("%s/%s" % (folder, idmap(i)),
-                                xshift=xshift,
-                                scale=scale,
-                                broaden=broaden)
-                    for i, atom in enumerate(atoms)
-                    if i == equiv[i] and mask[i]]
-        except IOError:
-            raise Exception("Some files are not found, please check idmap, " +
-                "symprec and angle_tolerance.")
+        specs = []
+        weights = []
+        notfound = 0
+        for i, atom in enumerate(atoms):
 
-        numequiv = Counter(equiv)
-        raw = np.array([spec._y for spec in specs])
-        weights = np.array([numequiv[i] for i in numequiv
-                            if atoms[i].number == species])
+            if mask[i] and i == equiv[i]:
+                try:
+                    specs.append(cls.fromfile("%s/%s" % (folder, idmap(i)),
+                                xshift=xshift, scale=scale, broaden=broaden))
+                    weights.append(numequiv[i])
+                except IOError:
 
-        return cls(specs[0]._x, weights @ raw, xshift=xshift, scale=scale,
-                   broaden=broaden), specs, weights / weights.sum()
+                    if not warnonly:
+                        raise Exception("Some files are not found, please " +
+                                        "check idmap, symprec and " +
+                                        "angle_tolerance.")
+                    specs.append(None)
+                    weights.append(-1)
+                    notfound += 1
+
+        if warnonly and notfound > 0:
+            if notfound == len(weights):
+                raise Exception("No spectrum found.")
+
+            warnings.warn("Spectra not found for %d sites" % notfound)
+
+        weights = np.array(weights)
+        mask = weights > -1
+        raw = np.array([spec._y for i, spec in enumerate(specs) if mask[i]])
+        weights = weights[mask]
+
+        return cls(specs[np.argmax(mask)]._x, weights @ raw, xshift=xshift,
+                   scale=scale, broaden=broaden), specs, weights / weights.sum()
