@@ -194,6 +194,14 @@ class Generic(np.ndarray):
         return ax
 
 
+    @staticmethod
+    def _getkwarg(key, default, kwargs):
+        try:
+            return kwargs.pop(key)
+        except:
+            return default
+
+
     @classmethod
     def fromfile(cls, fname, xshift=0, scale=1, broaden=True, *args, **kwargs):
         data = np.genfromtxt(fname, *args, **kwargs)
