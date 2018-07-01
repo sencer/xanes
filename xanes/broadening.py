@@ -27,18 +27,20 @@ def voigt(x, alpha, gamma):
             sigma /np.sqrt(2*np.pi))
 
 
-def flat_linear_flat(x, xlow, xhigh, ylow, yhigh):
+def flat_linear_flat(x, xlow, xhigh, ylow, yhigh, slope=0):
 
     dx = x[1] - x[0]
 
-    dX = xhigh - xlow
+    mask = (x>=xlow) & (x<xhigh)
 
-    slope = (yhigh - ylow) / dX
-    ramp = np.arange(dX/dx) * slope * dx + ylow
+    X = x[mask] - xlow
+    dX = X[-1] + dx
+    slope_ = (yhigh - ylow) / dX
+    ramp = X * slope_ + ylow
 
     val = np.ones_like(x) * ylow
 
-    val[(x>=xlow) & (x<xhigh)] = ramp
-    val[x>=xhigh] = yhigh
+    val[mask] = ramp
+    val[x>=xhigh] = yhigh + slope * (x[x>=xhigh] - xhigh)
 
     return val
