@@ -203,7 +203,12 @@ class Generic(np.ndarray):
 
 
     @classmethod
-    def fromfile(cls, fname, xshift=0, scale=1, broaden=True, *args, **kwargs):
+    def fromfile(cls, fname, *args, **kwargs):
+
+        xshift = cls._getkwarg('xshift', 0, kwargs)
+        scale = cls._getkwarg('scale', 1, kwargs)
+        broaden = cls._getkwarg('broaden', True, kwargs)
+
         data = np.genfromtxt(fname, *args, **kwargs)
 
         x = data[:, 0]
