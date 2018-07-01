@@ -176,17 +176,15 @@ class Generic(np.ndarray):
         self[:] = self._scale * b / np.trapz(b, x=self.x)
 
 
-    def plot(self, ax=None, *args, **kwargs):
-
-        # TODO check how pandas do that?
+    def plot(self, ax=None, scale=1, *args, **kwargs):
 
         if ax is None:
             # check if plt available
             import matplotlib.pyplot as plt
-            plt.plot(self.x, self, *args, **kwargs)
+            plt.plot(self.x, self * scale, *args, **kwargs)
             ax = plt.gca()
         else:
-            ax.plot(self.x, self, *args, **kwargs)
+            ax.plot(self.x, self * scale, *args, **kwargs)
 
         ax.set_xlabel("Energy, eV")
         ax.set_yticks(())
