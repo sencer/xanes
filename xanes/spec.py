@@ -18,7 +18,7 @@ class ClassBuilder():
             raise Exception("You need to supply xgrid or (xmin, xmax, dx)")
 
         if broadening_function is not None:
-            M = ClassBuilder.broadening_matrix(dx, xgrid, *broadening_function)
+            M = ClassBuilder.broadening_matrix(xgrid, *broadening_function)
         else:
             M = None
 
@@ -34,11 +34,12 @@ class ClassBuilder():
 
 
     @staticmethod
-    def broadening_matrix(dx, xgrid, func, args):
+    def broadening_matrix(xgrid, func, args):
 
         assert len(getargspec(func).args) == len(args) + 1
 
         L = len(xgrid)
+        dx = xgrid[1] - xgrid[0]
 
         args_ = []
 
