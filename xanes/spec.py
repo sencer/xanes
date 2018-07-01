@@ -8,14 +8,17 @@ class ClassBuilder():
     def __new__(cls, name, xmin=None, xmax=None, dx=None, xgrid=None,
                 broadening_function=None):
 
-        if xgrid is not None:
+        if not ((xmin is None and xmax is None and dx is None) ^
+                (xgrid is None)):
+            raise Exception(
+                      "Either (xmin, xmax, dx) or xgrid should be provided")
+
+        if xgrid is None:
+            xgrid = np.arange(xmin, xmax, dx)
+        elif xmin is None or xmax is None or dx is None:
             xmin = xgrid[0]
             xmax = xgrid[-1]
             dx = xgrid[1] - xmin
-        elif xmin is not None:
-            xgrid = np.arange(xmin, xmax, dx)
-        else:
-            raise Exception("You need to supply xgrid or (xmin, xmax, dx)")
 
         if broadening_function is not None:
             M = ClassBuilder.broadening_matrix(xgrid, *broadening_function)
