@@ -232,9 +232,11 @@ class Generic(np.ndarray):
     def broadened(self, val):
 
         if val and not self._broadened:
+            # Not already broadened, do broaden
             self.broaden()
 
         elif not val and self._broadened:
+            # Broadened, undo broaden
             self._broadened = val
             self.interpolate()
 
