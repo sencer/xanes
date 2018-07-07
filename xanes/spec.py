@@ -164,7 +164,6 @@ class Generic(np.ndarray):
         obj.scale = scale
         obj.xshift = xshift
 
-        obj.interpolate()
 
         if broaden and cls.M is not None:
             obj.broaden()
