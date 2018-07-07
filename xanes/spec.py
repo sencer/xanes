@@ -204,11 +204,11 @@ class Generic(np.ndarray):
     @xshift.setter
     def xshift(self, val):
 
+        if hasattr(self, '_xshift') and val == self._xshift:
+            return
+
         self._xshift = val
-
-        if self._interpolated:
-            self.interpolate()
-
+        self.interpolate()
 
     @property
     def scale(self):
