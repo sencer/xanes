@@ -216,6 +216,9 @@ class Generic(np.ndarray):
 
     @scale.setter
     def scale(self, val):
+        if hasattr(self, '_scale') and val == self._scale:
+            return
+
         if self._interpolated:
             self *= val / self._scale
 
