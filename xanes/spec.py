@@ -99,19 +99,17 @@ class ClassBuilder():
         dx = xgrid[1] - xgrid[0]
 
         args_ = []
-
-        var_args = False
-
+        e_dependent = False
         for arg in args:
 
             try:
                 args_.append(np.array([float(arg)] * L))
             except:
-                var_args = True
+                e_dependent = True
                 args_.append(np.array(arg))
                 assert len(arg) == L
 
-        if not var_args:
+        if not e_dependent:
             args_ = [arg[0] for arg in args_]
             x = dx * np.arange(L, dtype=int)
             B = func(x, *args_)
@@ -120,7 +118,7 @@ class ClassBuilder():
         nn = int(5/dx)  # average over this many units to interpolate the tail
         for i, row in enumerate(M):
 
-            if var_args:
+            if e_dependent:
                 args_i = [arg[i] for arg in args_]
                 Lmax = max(i, L-i)
                 x = dx * np.arange(L, dtype=int)
