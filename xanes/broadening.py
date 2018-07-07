@@ -27,7 +27,7 @@ def voigt(x, alpha, gamma):
             sigma /np.sqrt(2*np.pi))
 
 
-def flat_linear_flat(x, xlow, xhigh, ylow, yhigh, slope=0):
+def gamma_cabaret(x, xlow, xhigh, ylow, yhigh, slope=0):
 
     dx = x[1] - x[0]
 
