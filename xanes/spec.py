@@ -164,7 +164,6 @@ class Generic(np.ndarray):
         obj.scale = scale
         obj.xshift = xshift
 
-
         if broaden and cls.M is not None:
             obj.broaden()
 
@@ -247,9 +246,6 @@ class Generic(np.ndarray):
 
         self._interpolated = True
 
-        with np.errstate(divide='ignore', invalid='ignore'):
-            i = interp1d(self.xshift + self._x, self._y,
-                         fill_value="extrapolate",
         # do not interpolate if grids are same
         if len(self.__class__.x) == len(self._x) and \
                 np.allclose(self.__class__.x, self._x):
@@ -262,7 +258,19 @@ class Generic(np.ndarray):
 
             self[:] = i
 
+        if self._broadened:
+            self.broaden()
+        else:
+            self.normalize()
 
+
+    def normalize(self):
+
+        self.integrate()
+        self *= self._scale / self._integral
+
+
+    def integrate(self):
         # # calculate the area under curve for normalization purposes
         # mask = (((self._x + val) >  self.__class__.xmin) &
         #         ((self._x + val) <= self.__class__.xmax))
@@ -270,17 +278,16 @@ class Generic(np.ndarray):
 
         if self._integral < 1E-15:
             warnings.warn("No peaks in the region of interest " +
-                         ("(%.1f - %.1f). " % (self.__class__.xmin,
-                                               self.__class__.xmax))+
+                          ("(%.1f - %.1f). " % (self.__class__.xmin,
+                                                self.__class__.xmax))+
                           "Check your x-shift value.")
-
-        self[:] = self._scale * i / self._integral
 
 
     def broaden(self):
         self._broadened = True
-        b =  self.__class__.M @ self
-        self[:] = self._scale * b / np.trapz(b, x=self.x)
+        self[:] =  self.__class__.M @ self
+        self.normalize()
+
 
     def plot(self, ax=None, scale=1, rank=False, *args, **kwargs):
 
