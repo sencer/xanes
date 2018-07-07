@@ -171,6 +171,31 @@ class Generic(np.ndarray):
 
         return obj
 
+
+    def __array_finalize__(self, obj):
+
+        if obj is None:
+            return
+
+        if len(self) < len(obj):
+            pass
+
+        elif not np.allclose(np.asarray(self),
+                             np.asarray(obj)):
+            # TODO
+            # test for edge cases; currently this sets
+            # missing parameters for new spectra generated
+            # by algebraic operations
+            self._x = self.x
+            self._x.setflags(write=False)
+            self._y = np.asarray(self)
+            self._y.setflags(write=False)
+            self._interpolated = True
+            self._broadened = False
+            self._xshift = 0
+            self._scale = 1
+
+
     @property
     def xshift(self):
         return self._xshift
