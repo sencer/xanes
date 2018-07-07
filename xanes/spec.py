@@ -106,8 +106,8 @@ class ClassBuilder():
                 args_.append(float(arg))
             except:
                 e_dependent = True
+                assert len(arg) == L  # make sure we have correct size for grid
                 args_.append(np.array(arg))
-                assert len(arg) == L
 
         if not e_dependent:
             x = dx * np.arange(L, dtype=int)
@@ -119,8 +119,10 @@ class ClassBuilder():
 
             if e_dependent:
                 args_i = [arg if isinstance(arg, float) else arg[i]
-                Lmax = max(i, L-i)
                           for arg in args_]
+
+                Lmax = max(i+1, L-i+nn)
+                x = dx * np.arange(Lmax, dtype=int)
                 B = func(x, *args_i)
 
             row[i:] = B[:L-i]
