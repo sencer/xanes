@@ -264,7 +264,7 @@ class Generic(np.ndarray):
         # # calculate the area under curve for normalization purposes
         # mask = (((self._x + val) >  self.__class__.xmin) &
         #         ((self._x + val) <= self.__class__.xmax))
-        self._integral = np.trapz(i, x=self.x)
+        self._integral = np.trapz(np.asarray(self), x=self.x)
 
         if self._integral < 1E-15:
             warnings.warn("No peaks in the region of interest " +
