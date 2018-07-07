@@ -284,6 +284,54 @@ class Generic(np.ndarray):
         return ax
 
 
+    def align(self, other, xmin=None, xmax=None, dx=5,
+              metric='pearson', inplace=True):
+
+        if metric == 'pearson':
+            from scipy.stats import pearsonr
+            dist = lambda x, y: pearsonr(x, y)[0]
+        elif metric == 'spearman':
+            from scipy.stats import spearmanr
+            dist = lambda x, y: spearmanr(x, y)[0]
+        elif metric == 'rmse':
+            dist = lambda x, y: -np.mean(np.sqrt((x-y)**2)/x)
+
+        dx = int(dx/self.dx)
+
+        if xmin is None:
+            xmin = dx
+        else:
+            xmin = int((xmin - self.xmin) / self.dx)
+
+
+        if xmax is None:
+            xmax = len(self) - 1 - dx
+        else:
+            xmax = int((xmax - self.xmin) / self.dx + 1)
+
+        l = xmax - xmin
+
+        assert dx <= xmin
+        assert xmax + dx < len(self)
+
+        this = np.asarray(self)
+        that = np.asarray(other)
+
+        distances = [dist(that[xmin:xmax], this[s:s+l])
+                     for s in range(xmin-dx, xmin+dx)]
+
+        imaxdist = np.argmax(distances)
+
+        shift = dx - imaxdist
+
+        shift *= self.dx
+
+        if inplace:
+            self.xshift += shift
+
+        return shift, distances[imaxdist]
+
+
     @staticmethod
     def _getkwarg(key, default, kwargs):
         try:
