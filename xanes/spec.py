@@ -248,7 +248,18 @@ class Generic(np.ndarray):
         with np.errstate(divide='ignore', invalid='ignore'):
             i = interp1d(self.xshift + self._x, self._y,
                          fill_value="extrapolate",
-                         bounds_error=False)(self.__class__.x)
+        # do not interpolate if grids are same
+        if len(self.__class__.x) == len(self._x) and \
+                np.allclose(self.__class__.x, self._x):
+            self[:] = self._y
+        else:
+            with np.errstate(divide='ignore', invalid='ignore'):
+                i = interp1d(self.xshift + self._x, self._y,
+                            fill_value="extrapolate",
+                            bounds_error=False)(self.__class__.x)
+
+            self[:] = i
+
 
         # # calculate the area under curve for normalization purposes
         # mask = (((self._x + val) >  self.__class__.xmin) &
