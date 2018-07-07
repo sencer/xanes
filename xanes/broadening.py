@@ -44,3 +44,11 @@ def gamma_cabaret(x, xlow, xhigh, ylow, yhigh, slope=0):
     val[x>=xhigh] = yhigh + slope * (x[x>=xhigh] - xhigh)
 
     return val
+
+
+def gamma_arctan(x, xlow, xmid, ylow, yhigh):
+    val = np.ones_like(x) * ylow
+    arg = (x[x>xlow] - xlow)/(xmid-xlow)
+    val[x>xlow] = ylow + yhigh * (0.5 + np.arctan(arg - 1 / (arg*arg))/np.pi)
+
+    return val
