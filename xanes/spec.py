@@ -103,14 +103,13 @@ class ClassBuilder():
         for arg in args:
 
             try:
-                args_.append(np.array([float(arg)] * L))
+                args_.append(float(arg))
             except:
                 e_dependent = True
                 args_.append(np.array(arg))
                 assert len(arg) == L
 
         if not e_dependent:
-            args_ = [arg[0] for arg in args_]
             x = dx * np.arange(L, dtype=int)
             B = func(x, *args_)
 
@@ -119,9 +118,9 @@ class ClassBuilder():
         for i, row in enumerate(M):
 
             if e_dependent:
-                args_i = [arg[i] for arg in args_]
+                args_i = [arg if isinstance(arg, float) else arg[i]
                 Lmax = max(i, L-i)
-                x = dx * np.arange(L, dtype=int)
+                          for arg in args_]
                 B = func(x, *args_i)
 
             row[i:] = B[:L-i]
