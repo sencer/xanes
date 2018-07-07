@@ -20,6 +20,7 @@ import warnings
 from inspect import getargspec
 from scipy.interpolate import interp1d
 
+
 class ClassBuilder():
     """ Subclass `Generic` for given parameters, requires either xgrid, or
         (xmin, xmax, dx) provided as arguments.
@@ -93,6 +94,8 @@ class ClassBuilder():
                 args (iterable): Arguments of the broadening function
         """
 
+        # number of arguments provided in args should be 1
+        # less than needed for calling func
         assert len(getargspec(func).args) == len(args) + 1
 
         L = len(xgrid)
@@ -101,8 +104,9 @@ class ClassBuilder():
         args_ = []
         e_dependent = False
         for arg in args:
-
             try:
+                # try casting arg into a float, if not castable it is
+                # supposed to be an array - do E-dependent broadening
                 args_.append(float(arg))
             except:
                 e_dependent = True
