@@ -71,12 +71,12 @@ class ClassBuilder():
         else:
             M = None
 
-        new_class = type(name, (Generic, ), dict(
-            xmin=xmin, xmax=xmax, dx=dx,
-            x=xgrid,
-            M=M
-        ))
-
+        new_class = type(name, (Generic, ), dict(M=M,
+                                                 name=name,
+                                                 xmin=xmin,
+                                                 xmax=xmax,
+                                                 dx=dx,
+                                                 xgrid=xgrid))
         new_class.x.setflags(write=False)
 
         return new_class
