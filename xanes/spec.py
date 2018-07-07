@@ -371,3 +371,39 @@ class Generic(np.ndarray):
 
         return cls(specs[np.argmax(mask)]._x, weights @ raw, xshift=xshift,
                    scale=scale, broaden=broaden), specs, weights / weights.sum()
+
+
+    @classmethod
+    def dump(cls, file, specs):
+        assert isinstance(specs, list)
+
+        specs = [(i._x, i._y, i.xshift, i.scale, i._broadened)
+                 for i in specs]
+
+        np.savez(file, original=False, specs=specs, name=cls.name,
+                 x=(cls.xmin, cls.xmax+cls.dx, cls.dx), M=cls.M)
+
+
+
+
+def load(file):
+
+    with np.load(file) as dump:
+        specs = dump['specs']
+        name = str(dump['name'])
+        xmin, xmax, dx = dump['x']
+        M = dump['M']
+        original = bool(dump['original'])
+
+    new_class = type(name, (Generic, ), dict(name=name,
+                                             xmin=xmin,
+                                             xmax=xmax,
+                                             dx=dx,
+                                             x=np.arange(xmin, xmax, dx)))
+
+    new_class.M = M
+
+    specs = [new_class(i[0], i[1], xshift=i[2], scale=i[3], broaden=i[4])
+                for i in specs]
+
+    return new_class, specs
