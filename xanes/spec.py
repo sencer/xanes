@@ -280,16 +280,21 @@ class Generic(np.ndarray):
         b =  self.__class__.M @ self
         self[:] = self._scale * b / np.trapz(b, x=self.x)
 
+    def plot(self, ax=None, scale=1, rank=False, *args, **kwargs):
 
-    def plot(self, ax=None, scale=1, *args, **kwargs):
+        if rank:
+            from scipy.stats import rankdata
+            data = rankdata(self)
+        else:
+            data = np.asarray(self) * scale
 
         if ax is None:
             # check if plt available
             import matplotlib.pyplot as plt
-            plt.plot(self.x, self * scale, *args, **kwargs)
+            plt.plot(self.x, data, *args, **kwargs)
             ax = plt.gca()
         else:
-            ax.plot(self.x, self * scale, *args, **kwargs)
+            ax.plot(self.x, data, *args, **kwargs)
 
         ax.set_xlabel("Energy, eV")
         ax.set_yticks(())
