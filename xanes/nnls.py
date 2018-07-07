@@ -48,7 +48,7 @@ class BestNNLS():
         self.max_shift = self.fit_start + self.max_shift
 
         # region of the spectrum to be fitted, and its length
-        self.unknown = unknown[self.fit_start:self.fit_end]
+        self.unknown = np.asarray(unknown)[self.fit_start:self.fit_end]
         self.len = self.fit_end - self.fit_start
 
         self.maxiter = maxiter
@@ -157,7 +157,7 @@ class BestNNLS():
 
     def spectrum(self, ind, fractions=None):
         if fractions is None:
-            A = np.column_stack((b[s:s+self.len] for b, s in
+            A = np.column_stack((np.asarray(b)[s:s+self.len] for b, s in
                                 zip(self.basis, ind)))
 
             # ordinary MSE score
@@ -217,10 +217,10 @@ class BestNNLS():
         for b, s in zip(self.basis, shifts):
             b.xshift += s
 
-        fractions, fitness = nnls(np.column_stack([b[self.fit_start:self.fit_end]
-                                                   for b in self.basis]),
+        fractions, fitness = nnls(np.column_stack([
+            np.asarray(b)[self.fit_start:self.fit_end] for b in self.basis]),
                                   self.unknown, maxiter=self.maxiter)
 
         spec = np.array(list(self.basis[:]), dtype=float).T @ fractions
 
-        return spec.view(self.unknown.__class__), fractions, fitness, shifts
+        return spec.view(self.basis[0].__class__), fractions, fitness, shifts
