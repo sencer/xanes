@@ -117,6 +117,7 @@ class ClassBuilder():
             B = func(x, *args_)
 
         M = np.zeros((L, L))
+        nn = int(5/dx)  # average over this many units to interpolate the tail
         for i, row in enumerate(M):
 
             if var_args:
@@ -126,9 +127,13 @@ class ClassBuilder():
                 B = func(x, *args_i)
 
             row[i:] = B[:L-i]
-            row[:i] = B[:i][::-1]
+            row[:i] = B[1:i+1][::-1]
 
-        M /= np.sum(M, axis=1, keepdims=True)
+            # add an average broadening to the high-energy tail
+            # computed as if the highest 5 eV region of the spectrum
+            # represents the uncalculated part
+            # integral(tail of lorentzian) * 
+            row[-nn:] += B[L-i:].sum()/nn
 
         return M
 
