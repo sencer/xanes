@@ -248,7 +248,8 @@ class Generic(np.ndarray):
 
         # do not interpolate if grids are same
         if len(self.__class__.x) == len(self._x) and \
-                np.allclose(self.__class__.x, self._x):
+                np.allclose(self.__class__.x, self._x) and \
+                self._xshift == 0:
             self[:] = self._y
         else:
             with np.errstate(divide='ignore', invalid='ignore'):
