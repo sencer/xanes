@@ -77,7 +77,7 @@ class ClassBuilder():
                                                  xmin=xmin,
                                                  xmax=xmax,
                                                  dx=dx,
-                                                 xgrid=xgrid))
+                                                 x=xgrid))
         new_class.x.setflags(write=False)
 
         return new_class
