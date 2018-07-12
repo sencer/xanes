@@ -14,11 +14,6 @@ def simplescore(unk, basis, fitstart, fitend, shifts, maxiter):
 
     frac, score = nnls(basis, unk, maxiter)
 
-    # xshifts where fracs == 0 can drift arbitrarily; fix it
-    for i, f in enumerate(frac):
-        if f < 1E-8:
-            shifts[i] = 0
-
     return score
 
 
@@ -27,7 +22,7 @@ class BestNNLS():
 
     def __init__(self, unknown, basis, score=simplescore, optdim=None,
                  maxshift=5, fitstart=None, fitend=None, maxiter=100,
-                 verbose=False, seed=0, popsize=500):
+                 adapter=None, verbose=False, seed=0, popsize=500):
 
 
         # get the width of eV grid
@@ -239,5 +234,10 @@ class BestNNLS():
         frac, score = nnls(np.column_stack([np.asarray(b)[self.fitstart:self.fitend]
                                             for b in self.basis_]),
                            self.unknown)
+
+        # xshifts where fracs == 0 can drift arbitrarily; fix it
+        for i, f in enumerate(frac):
+            if f < 1E-8:
+                ind[i] = 0
 
         return (np.array(self.basis_).T @ frac).view(self.cls), frac, score, ind
