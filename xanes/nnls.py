@@ -1,226 +1,243 @@
-import deap
 import numpy as np
-
-from deap import base, algorithms, tools, creator
-from scipy.optimize import nnls
-from scipy.stats import rankdata, spearmanr
-
 import warnings
 
-def weighted_spearman(x, y, w=None):
-    if w is None:
-        w = 1/(y + np.percentile(y, 10))
-    rx = rankdata(x)
-    ry = rankdata(y)
-    cov = np.cov(rx, ry, aweights=w)[0, 1]
+from scipy.optimize import nnls
 
-    return cov / np.std(rx) / np.std(ry)
+
+def simplescore(unk, basis, fitstart, fitend, shifts, maxiter):
+
+    assert len(shifts) == len(basis)
+
+    basis = np.column_stack([b[fitstart-i:fitend-i]
+                             for i, b in zip(shifts, basis)])
+
+
+    frac, score = nnls(basis, unk, maxiter)
+
+    # xshifts where fracs == 0 can drift arbitrarily; fix it
+    for i, f in enumerate(frac):
+        if f < 1E-8:
+            shifts[i] = 0
+
+    return score
+
 
 class BestNNLS():
 
-    creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
-    creator.create("Individual", np.ndarray,
-                                 fitness=creator.FitnessMin)
+
+    def __init__(self, unknown, basis, score=simplescore, optdim=None,
+                 maxshift=5, fitstart=None, fitend=None, maxiter=100,
+                 verbose=False, seed=0, popsize=500):
 
 
-    def __init__(self, unknown, basis, max_shift=7, fit_start=None,
-                 fit_end=None, maxiter=100, mask=None, popsize=500,
-                 score=0, verbose=False, seed=0):
+        # get the width of eV grid
+        self.dx = unknown.dx
 
-        # convert max_shift, fit_start and fit_end from eV to array units
-        self.dx = unknown.x[1] - unknown.x[0]  # eV difference between array elem.
-        self.max_shift = int(max_shift / self.dx) + 1
+        # convert eV parameters to integer indices
+        try:
+            maxshift = int(round(maxshift / self.dx))
+            self.shifts = None
+        except:
+            self.shifts = np.round(np.array(maxshift) / self.dx).astype(int)
+            maxshift = self.shifts.max()
 
-        if fit_start is None:
-            self.fit_start = self.max_shift
+
+        if fitstart is None:
+            self.fitstart = maxshift
         else:
-            self.fit_start = int((fit_start - unknown.x[0]) / self.dx)
-            assert self.fit_start >= self.max_shift
+            self.fitstart = int(round((fitstart - unknown.x[0])/self.dx)) + 1
+            assert self.fitstart >= maxshift
 
-        len_unknown = len(unknown)
-        if fit_end is None:
-            self.fit_end = len_unknown - self.max_shift
+        if fitend is None:
+            self.fitend = len(unknown) - maxshift
         else:
-            self.fit_end = int((fit_end - unknown.x[0]) / self.dx) + 1
-            assert self.fit_end + max_shift < len_unknown
+            self.fitend = int(round((fitend - unknown.x[0]) / self.dx)) + 1
+            assert self.fitend + maxshift < len(unknown)
 
-        self.min_shift = self.fit_start - self.max_shift
-        self.max_shift = self.fit_start + self.max_shift
+        if optdim is None:
+            self.N = len(basis)
+        else:
+            self.N = optdim
 
-        # region of the spectrum to be fitted, and its length
-        self.unknown = np.asarray(unknown)[self.fit_start:self.fit_end]
-        self.len = self.fit_end - self.fit_start
+        if self.shifts is None:
+            self.shifts = np.array([maxshift] * self.N)
+        else:
+            assert len(self.shifts) == self.N
 
-        self.maxiter = maxiter
-        self.verbose = verbose
+        # convert the spectra to regular numpy arrays,
+        # but keep the class information
+        self.unknown = np.asarray(unknown)[self.fitstart:self.fitend]
+        self.basis = np.array(basis)
+        self.basis_ = basis
+        self.cls = unknown.__class__
 
-        # seeded random number generator
-        self._gen = np.random.RandomState(seed)
+        # random number generator with seed
+        self.rng = np.random.RandomState(seed)
 
-        # how the scoring will be done
-        #     0: MSE
-        #     1: weighted MSE, w = 1/unknown
-        #     2: (1 - Spearman r)
-        #     3: (1 - weighted Spearman r)
+        # scoring function
         self.score = score
 
-        self.N = len(basis)
-        if mask is None:
-            self.mask = np.ones(self.N, dtype=bool)
-        else:
-            self.mask = mask
+        # store other arguments
+        self.maxiter = maxiter
+        self.verbose = verbose
+        self.npop = popsize
 
-        # the basis set, and its length (which will be the length
-        # of the "individual" to be evolved)
-        self.basis = np.empty(len(basis), dtype=object)
-        self.basis[:] = basis
-        self.basis[~self.mask][:] = 0
-
-
-        # create the evolutionary toolbox
-        self._tb = base.Toolbox()
-        self._tb.register("attr_shift", self._gen.randint, self.min_shift,
-                                                           self.max_shift)
-        self._tb.register("individual", tools.initRepeat, creator.Individual,
-                                        self._tb.attr_shift, n=self.N)
-
-        self._tb.register("population", tools.initRepeat, list,
-                                        self._tb.individual)
-        self._tb.register("evaluate", self.fitness)
-        self._tb.register("mate", self.crossover)
-        self._tb.register("mutate", self.mutate, rate=0.1)
-        self._tb.register("select", tools.selTournament, tournsize=3)
-
-        self.pop = self._tb.population(popsize)
-        self.hof = tools.HallOfFame(1, similar=np.array_equal)
-
-        # statistics to log
-        self.stats = tools.Statistics(lambda ind: ind.fitness.values)
-        self.stats.register("avg", np.mean)
-        self.stats.register("std", np.std)
-        self.stats.register("min", np.min)
-        self.stats.register("max", np.max)
-
+        # a cache to avoid re-evaluating same individuals
         self.cache = {}
 
 
-    def mutate(self, ind, rate=1E-1):
+    def isnew(self, ind):
+        return np.array_str(ind) not in self.cache
 
-        # make sure the mutation generates a new individual
-        # be content with and old one if it cannot in 100 trials
+
+    def addtocache(self, ind):
+        if self.isnew(ind):
+            score = self.score(self.unknown, self.basis, self.fitstart,
+                               self.fitend, ind, self.maxiter)
+            self.cache[np.array_str(ind)] = score
+
+
+    def getscore(self, ind):
+        return self.cache[np.array_str(ind)]
+
+
+    def newindividual(self):
+        while True:
+            ind = np.array([self.rng.randint(-i, i+1) for i in self.shifts])
+
+            if self.isnew(ind):
+                self.addtocache(ind)
+                break
+
+        return ind
+
+
+    def mutate(self, ind, rate=0.1):
         counter = 0
-        while counter < 100 and np.array_str(ind) in self.cache :
-            ind[self._gen.randint(self.N)] = self._gen.randint(self.min_shift,
-                                                               self.max_shift)
+        tmp = np.copy(ind)
+
+        while counter < 100 and not self.isnew(tmp):
+            index = self.rng.randint(self.N)
+            shift = self.shifts[index]
+            tmp[index] = self.rng.randint(-shift, shift+1)
             counter += 1
 
-        return ind,
+        if self.isnew(tmp):
+            self.addtocache(tmp)
+
+        return tmp
 
 
-    def crossover(self, ind1, ind2):
+    def mate(self, ind1, ind2):
 
-        counter = 0
+        tmp1 = np.copy(ind1)
+        tmp2 = np.copy(ind2)
 
         if self.N < 3:
 
-            perms = [(0, 0), (0, 1), (1, 0), (1, 1)]
+            points = [0, 1]
+            for cx in self.rng.shuffle(perms):
+                tmp1 = np.copy(ind1)
+                tmp2 = np.copy(ind2)
+                tmp1[cx], tmp2[cx] = tmp2[cx], tmp1[cx]
 
-            for cx1, cx2 in self._gen.shuffle(perms):
-                tmp1 = np.array(ind1)
-                tmp2 = np.array(ind2)
-                tmp1[cx1], tmp2[cx2] = tmp2[cx2], tmp1[cx1]
+                if self.isnew(tmp1) or self.isnew(tmp2):
+                    break
 
-                if not (np.array_str(tmp1) in self.cache and
-                        np.array_str(tmp2) in self.cache):
-                    ind1 = tmp1
-                    ind2 = tmp2
         else:
             counter = 0
-            tmp1 = np.array(ind1)
-            tmp2 = np.array(ind2)
 
-            while counter < 100 and (np.array_str(tmp1) in self.cache and
-                                     np.array_str(tmp2) in self.cache):
-                cx1 = self._gen.randint(0, self.N - 2)
-                cx2 = self._gen.randint(cx1, self.N - 1)
+            while counter < 100 and not (self.isnew(tmp1) or self.isnew(tmp2)):
 
-                tmp1[cx1:cx2] = ind2[cx1:cx2]
-                tmp2[cx1:cx2] = ind1[cx1:cx2]
+                tmp1 = np.copy(ind1)
+                tmp2 = np.copy(ind2)
+
+                cx1 = self.rng.randint(0, self.N - 2)
+                cx2 = self.rng.randint(cx1, self.N)
+
+                tmp1[cx1:cx2], tmp2[cx1:cx2] = ind2[cx1:cx2], ind1[cx1:cx2]
 
                 counter += 1
 
-            ind1 = tmp1
-            ind2 = tmp2
-
-        return creator.Individual(ind1), creator.Individual(ind2)
-
-
-    def spectrum(self, ind, fractions=None):
-        if fractions is None:
-            A = np.column_stack((np.asarray(b)[s:s+self.len] for b, s in
-                                zip(self.basis, ind)))
-
-            # ordinary MSE score
-            fractions, fitness = nnls(A, self.unknown, maxiter=self.maxiter)
-            fractions[~self.mask] = 0
-
-        spec = A @ fractions
-
-        return spec, fractions, fitness
+        if self.isnew(tmp1):
+            self.addtocache(tmp1)
+        if self.isnew(tmp2):
+            self.addtocache(tmp2)
+        return ind1, ind2
 
 
-    def fitness(self, ind):
+    def run(self, ngen=100, mutation_rate=0.9, mate_rate=0.1,
+                  nnew=100, stop=30, tournsize=3):
 
-        s = np.array_str(ind)
-        if s not in self.cache:
+        assert mutation_rate + mate_rate <= 1.0
 
-            fitted, fractions, fitness = self.spectrum(ind)
+        mate_rate += mutation_rate
 
-            if self.score > 0:
-                if self.score == 1:
-                    # weighted MSE score
+        pop = [self.newindividual() for _ in range(self.npop)]
+        fitnesses = [self.getscore(ind) for ind in pop]
 
-                    # scale the errors with the intensity of the spectrum,
-                    # so th
-                    fitness = np.sum((fitted - self.unknown)**2 /
-                                     (self.unknown +
-                                      np.percentile(self.unknown, 10)))
-                elif self.score == 2:
-                    # spearman score
-                    fitness = 1 - spearmanr(fitted, self.unknown)[0]
-                    # weighted spearman score
-                elif self.score == 3:
-                    fitness = 1 - weighted_spearman(fitted, self.unknown)
+        best = 1e6
+        oldbest = 1e6
 
-            self.cache[s] = fitness
-        else:
-            fitness = self.cache[s]
+        def selrandom(k):
+            indices = self.rng.choice(np.arange(len(pop)), k, replace=False)
+            return [pop[i] for i in indices]
 
-        return fitness,
+        def seltourn(k):
+            return [min(selrandom(tournsize),
+                        key=lambda ind: self.getscore(ind)) for _ in range(k)]
 
 
-    def run(self, ngen=100, mutation_rate=0.7, crossover_rate=0.7):
+        nold = self.npop - nnew
+        nconv = 0
 
-        pop, log = algorithms.eaSimple(self.pop, self._tb, ngen=ngen,
-                                       cxpb=crossover_rate,
-                                       mutpb=mutation_rate,
-                                       stats=self.stats,
-                                       halloffame=self.hof,
-                                       verbose=self.verbose)
+        for gen in range(ngen):
 
-        spec, fractions, fitness = self.spectrum(self.hof[0])
+            offspring = seltourn(nold)
+            lst = np.arange(nold)
 
-        mask = fractions != 0
-        shifts = (self.fit_start - self.hof[0]) * self.dx
-        shifts[~mask] = 0
+            var = []
+            for i, ind in enumerate(offspring):
 
-        for b, s in zip(self.basis, shifts):
-            b.xshift += s
+                epsilon = self.rng.rand()
 
-        fractions, fitness = nnls(np.column_stack([
-            np.asarray(b)[self.fit_start:self.fit_end] for b in self.basis]),
-                                  self.unknown, maxiter=self.maxiter)
+                if epsilon < mutation_rate:
+                    var.append(self.mutate(ind))
+                elif epsilon < mate_rate:
+                    j = (self.rng.choice(lst)%(nold-1)+(i+1))%nold
+                    var += self.mate(offspring[i], offspring[j])
+                    i, j = max(i, j), min(i, j)
 
-        spec = np.array(list(self.basis[:]), dtype=float).T @ fractions
+            pop = var + [self.newindividual() for _ in range(nnew)]
 
-        return spec.view(self.basis[0].__class__), fractions, fitness, shifts
+            best = min([self.cache[i] for i in self.cache])
+
+            if self.verbose:
+                print("%3d %3d %12.6e " % (1+gen, len(pop), best), end="")
+
+            if  oldbest - best < 1E-7:
+                nconv += 1
+                if self.verbose:
+                    print("~ %d" % nconv)
+                if nconv >= stop:
+                    break
+            else:
+                if self.verbose:
+                    print("")
+                nconv = 0
+
+            oldbest = best
+
+        ind = np.array([int(i)
+                        for i in min(self.cache,
+                                     key=lambda x:
+                                     self.cache[x])[1:-1].split()]) * self.dx
+
+        for b, shift in zip(self.basis_, ind):
+            b.xshift += shift
+
+        frac, score = nnls(np.column_stack([np.asarray(b)[self.fitstart:self.fitend]
+                                            for b in self.basis_]),
+                           self.unknown)
+
+        return (np.array(self.basis_).T @ frac).view(self.cls), frac, score, ind
