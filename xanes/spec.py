@@ -457,7 +457,7 @@ class Generic(np.ndarray):
                  for i in specs]
 
         np.savez(file, original=False, specs=specs, name=cls.name,
-                 x=(cls.xmin, cls.xmax+cls.dx, cls.dx), M=cls.M)
+                 x=(cls.xmin, cls.xmax, cls.dx), M=cls.M)
 
 
 
