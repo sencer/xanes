@@ -76,6 +76,7 @@ class BestNNLS():
         self.maxiter = maxiter
         self.verbose = verbose
         self.npop = popsize
+        self.adapter = (lambda x: x) if adapter is None else adapter
 
         # a cache to avoid re-evaluating same individuals
         self.cache = {}
@@ -87,8 +88,9 @@ class BestNNLS():
 
     def addtocache(self, ind):
         if self.isnew(ind):
-            score = self.score(self.unknown, self.basis, self.fitstart,
-                               self.fitend, ind, self.maxiter)
+            score = self.score(self.unknown, self.basis,
+                               self.fitstart, self.fitend,
+                               self.adapter(ind), self.maxiter)
             self.cache[np.array_str(ind)] = score
 
 
@@ -223,10 +225,8 @@ class BestNNLS():
 
             oldbest = best
 
-        ind = np.array([int(i)
-                        for i in min(self.cache,
-                                     key=lambda x:
-                                     self.cache[x])[1:-1].split()]) * self.dx
+        best = min(self.cache, key=self.cache.get)[1:-1].split()
+        ind = self.adapter(np.array([int(i) for i in best]) * self.dx)
 
         for b, shift in zip(self.basis_, ind):
             b.xshift += shift
